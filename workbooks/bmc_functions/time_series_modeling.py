@@ -49,7 +49,7 @@ def model_results(ts_model):
     Args:
         ts_model (model): fitted model for evaluation
     """    
-    display(best_model.summary())
+    display(ts_model.summary())
     ts_model.plot_diagnostics();
     plt.tight_layout()
 
@@ -93,13 +93,13 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3
                                 SARIMAX model using best parameters.
     """    
 
-    auto_arima_model = auto_arima_model(timeseries_dataset, start_p = start_p,
+    auto_model = auto_arima_model(timeseries_dataset, start_p = start_p,
                                 max_p = max_p,start_q = start_q,
                                 max_q = max_q, d = d ,m = m,
                                 start_P = start_P, start_Q = start_Q,
                                 max_P = max_P, max_Q = max_Q, D = D)
       
-    best_model = tsa.SARIMAX(train,order=auto_model.order,
+    best_model = tsa.SARIMAX(timeseries_dataset,order=auto_model.order,
                              seasonal_order = auto_model.seasonal_order,
                              enforce_invertibility=False).fit()
     
@@ -113,88 +113,96 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3
 
 ### --------------- Workflow --------------- ###
 
-## Select values for the selected zipcode
-zipcode_val = zipcodes_df[15206].copy()
-zipcode_val
+def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, n_yrs_future=2):
+    """Functionalizes total time series modeling workflow 
+    starting with time series dataset through final forecasted data and ROI.
 
-## Split dataset
-train, test = ts_split(zipcode_val, .85)
+    Args:
+        dataframe (DataFrame): Original dataframe from which to select series
+        zipcode (string): Series name to model and forecast.
+        threshold (float, optional): Threshold to determine train/test split. Defaults to .85.
+        m (int, optional): The number of periods in each season (for seasonal differencing). Defaults to 12.
+        n_yrs_past (int, optional): Number of past years for visualizations. Defaults to 5.
+        n_yrs_future (int, optional): Number of future years for visualizations. Defaults to 2.
+    """
 
-## Determine d, D values for SARIMA model
-n_d = ndiffs(train)
-n_D = nsdiffs(train, m=12)
+    ## Select values for the selected zipcode
+    zipcode_val = dataframe[zipcode].copy()
+    zipcode_val
 
-auto_model, best_model = create_best_model(train, n_d=n_d, n_D=n_D)
+    ## Split dataset
+    train, test = ts_split(zipcode_val, threshold)
 
- ## Using get_forecast to generate forecasted data
-forecast = best_model.get_forecast(steps=len(test))
+    ## Determine d, D values for SARIMA model
+    n_d = ndiffs(train)
+    n_D = nsdiffs(train, m=m)
 
-## Saving confidence intervals and predicted mean for future
-forecast_df = forecast.conf_int()
-forecast_df.columns = ['Lower CI','Upper CI']
-forecast_df['Forecast'] = forecast.predicted_mean
-forecast_df.head(5)
+    ## Generating auto_arima model and SARIMAX model
+    ## (based on best parameters from auto_arima model)
+    auto_model, best_model = create_best_model(train, n_d=n_d, n_D=n_D)
+  
+    ## Using get_forecast to generate forecasted data
+    forecast = best_model.get_forecast(steps=len(test))
 
-fig,ax = plt.subplots(figsize=(13,6))
+    ## Saving confidence intervals and predicted mean for future
+    forecast_df = forecast.conf_int()
+    forecast_df.columns = ['Lower CI','Upper CI']
+    forecast_df['Forecast'] = forecast.predicted_mean
+    forecast_df.head(5)
 
-last_n_lags=12*n_years
+    fig,ax = plt.subplots(figsize=(13,6))
 
-## Plotting training, testing datasets
-train.iloc[-last_n_lags:].plot(label='Training Data')
-test.plot(label='Test Data')
+    ## Plotting training, testing datasets
+    last_n_lags=12*n_yrs_past
+    train.iloc[-last_n_lags:].plot(label='Training Data')
+    test.plot(label='Test Data')
 
-## Plotting forecasted data and confidence intervals
-forecast_df['Forecast'].plot(ax=ax,label='Forecast')
-ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
-                forecast_df['Upper CI'],color='b',alpha=0.4)
+    ## Plotting forecasted data and confidence intervals
+    forecast_df['Forecast'].plot(ax=ax,label='Forecast')
+    ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
+                    forecast_df['Upper CI'],color='b',alpha=0.4)
+    ax.set(xlabel='Time')
+    ax.set(ylabel='Sale Price ($)')
+    ax.set_title('Original Data and Forecasted Data')
+    ax.legend();
 
-ax.set(xlabel='Time')
-ax.set(ylabel='Sell Price ($)')
-ax.set_title('Original Data and Forecasted Data')
-ax.legend();
+    ## Fitting best model using whole dataset
+    best_model_overall = tsa.SARIMAX(zipcode_val,order=auto_model.order,
+                            seasonal_order = auto_model.seasonal_order,
+                            enforce_invertibility=False).fit()
 
-best_model = tsa.SARIMAX(zipcode_val,order=auto_model.order,
-                         seasonal_order = auto_model.seasonal_order,
-                         enforce_invertibility=False).fit()
+    ## Showing results
+    display(model_results(best_model_overall))
 
-display(best_model.summary())
-best_model.plot_diagnostics(figsize=(12,9));
-plt.tight_layout()
+    ## Using get_forecast to generate forecasted data
+    forecast = best_model_overall.get_forecast(steps=12*n_yrs_future)
 
-## Using get_forecast to generate forecasted data
-forecast = best_model.get_forecast(steps=24)
+    ## Saving confidence intervals and predicted mean for future
+    forecast_df = forecast.conf_int()
+    forecast_df.columns = ['Lower CI','Upper CI']
+    forecast_df['Forecast'] = forecast.predicted_mean
+    display(forecast_df)
 
-## Saving confidence intervals and predicted mean for future
-forecast_df = forecast.conf_int()
-forecast_df.columns = ['Lower CI','Upper CI']
-forecast_df['Forecast'] = forecast.predicted_mean
-forecast_df.head(5)
+    ## Plotting original data and forecasted results
+    fig,ax = plt.subplots(figsize=(13,6))
 
-## Plotting training, test data and forecasted results
-fig,ax = plt.subplots(figsize=(13,6))
+    ## Plotting original data
+    zipcode_val.plot(label='Original Data')
 
-zipcode_val.plot(label='Training Data')
+    ## Plotting forecasted data and confidence intervals
+    forecast_df['Forecast'].plot(ax=ax,label='Forecast')
+    ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
+                    forecast_df['Upper CI'],color='b',alpha=0.4)
+    ax.set(xlabel='Time')
+    ax.set(ylabel='Sale Price ($)')
+    ax.set_title('Original and Forecasted Data')
+    ax.legend();
 
-## Plotting forecasted data and confidence intervals
-forecast_df['Forecast'].plot(ax=ax,label='Forecast')
-ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
-                forecast_df['Upper CI'],color='b',alpha=0.4)
+    ## Calculating investment cost and ROI
+    investment_cost = forecast_df.iloc[0,2]
+    roi_df = (forecast_df - investment_cost)/investment_cost*100
+    display(roi_df)
 
-ax.set(xlabel='Time')
-ax.set(ylabel='Sale Price ($)')
-ax.set_title('Data and Forecasted Data')
-ax.legend();
-
-forecast_df
-
-investment_cost = forecast_df.iloc[0,2]
-investment_cost
-
-roi_df = (forecast_df - investment_cost)/investment_cost*100
-roi_df
-
-roi_final = roi_df.iloc[-1]
-roi_final
-
-roi_final.name = zipcode_val.name.astype('str')
-roi_final
+    roi_final = roi_df.iloc[-1]
+    roi_final.name = zipcode_val.name.astype('str')
+    display(roi_final)
