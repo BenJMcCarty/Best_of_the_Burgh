@@ -229,20 +229,21 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
                             seasonal_order = auto_model.seasonal_order,
                             enforce_invertibility=False).fit()
 
-    ## Showing results
-    display(model_results(best_model_overall))
+    
+    best_model_perf = model_results(best_model_overall)
 
     ## Using get_forecast to generate forecasted data
     forecast_overall = forecast_and_ci(best_model_overall, n_yrs_future = n_yrs_future)
 
     ## Plotting original data and forecast results
-    plot_forecast_final(zipcode_val, forecast_overall)
+    final_fig, final_ax = plot_forecast_final(zipcode_val, forecast_overall)
 
-    ## Calculating investment cost and ROI
+    ## Calculating investment cost and ROI across dataframe
     investment_cost = forecast_df.iloc[0,2]
-    roi_df = (forecast_df - investment_cost)/investment_cost*100
-    display(roi_df)
-
+    roi_df = (forecast_overall - investment_cost)/investment_cost*100
+    
+    ## Pulling ROI for final forecasted date
     roi_final = roi_df.iloc[-1]
     roi_final.name = zipcode_val.name.astype('str')
-    display(roi_final)
+    
+    return forecast_overall, roi_final, best_model_perf, final_fig
