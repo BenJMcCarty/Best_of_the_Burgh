@@ -221,7 +221,7 @@ def report_df(dataframe):
                             'datatypes':dataframe.dtypes,
                             'num_unique':dataframe.nunique()})
 
-    report_df = pd.concat([report_df, dataframe.describe().T], axis=1)
+    report_df = pd.concat([report_df, dataframe.describe().T], axis=1, sort=True)
 
     # print(dataframe.shape)
 
