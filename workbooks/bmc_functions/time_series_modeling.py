@@ -123,18 +123,13 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=5,
     Returns:
         auto_model, best_model: auto_arima-generated model with best parameters,
                                 SARIMAX model using best parameters.
-    """    
-
-    ## Determine d, D values for SARIMA model
-    n_d = ndiffs(timeseries_dataset)
-    n_D = nsdiffs(timeseries_dataset, m=m)
+    """
 
     auto_model_best = auto_arima_model(timeseries_dataset,m = m,
                                  start_p = start_p,max_p = max_p,
                                  start_q = start_q,max_q = max_q,
                                  start_P = start_P, start_Q = start_Q,
-                                 max_P = max_P, max_Q = max_Q,
-                                 n_d=n_d, n_D=n_D, error_action = 'ignore')
+                                 max_P = max_P, max_Q = max_Q)
       
     best_model = tsa.SARIMAX(timeseries_dataset,order=auto_model_best.order,
                              seasonal_order = auto_model_best.seasonal_order,
