@@ -6,6 +6,7 @@ By Ben McCarty (bmccarty505@gmail.com)'''
 
 ### --------------- Importing Dependencies --------------- ###
 
+from sys import displayhook
 import pmdarima as pmd
 from pmdarima.arima import ndiffs
 from pmdarima.arima import nsdiffs
@@ -52,9 +53,22 @@ def model_results(ts_model):
     ts_model.plot_diagnostics();
     plt.tight_layout()
 
+## Generate best model parameters via auto_arima
+def auto_arima_model(timeseries_dataset,m=12,start_p=0,max_p=3
+                        ,start_q=0,max_q=3,d=n_d,start_P=0,
+                        start_Q=0, max_P=3, max_Q = 3, D = n_D):
+    
+    auto_arima_model = pmd.auto_arima(timeseries_dataset, start_p = start_p,
+                                max_p = max_p,start_q = start_q,
+                                max_q = max_q, d = d ,m = m,
+                                start_P = start_P, start_Q = start_Q,
+                                max_P = max_P, max_Q = max_Q, D = D)
+
+    return auto_arima_model
+
 ## Use auto_arima to determine best parameters
 ## Then create new SARIMA model via Statsmodels with selected parameters
-def calc_plot_best_model(timeseries_dataset,m=12,start_p=0,max_p=3
+def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3
                         ,start_q=0,max_q=3,d=n_d,start_P=0,
                         start_Q=0, max_P=3, max_Q = 3, D = n_D):
     """Calculates best model parameters via auto-arima,
@@ -75,24 +89,27 @@ def calc_plot_best_model(timeseries_dataset,m=12,start_p=0,max_p=3
         D ([type], optional): The order of the seasonal differencing. Defaults to n_D.
 
     Returns:
-        [type]: [description]
+        auto_model, best_model: auto_arima-generated model with best parameters,
+                                SARIMAX model using best parameters.
     """    
 
-    auto_model = pmd.auto_arima(timeseries_dataset, start_p = start_p,
+    auto_arima_model = auto_arima_model(timeseries_dataset, start_p = start_p,
                                 max_p = max_p,start_q = start_q,
                                 max_q = max_q, d = d ,m = m,
                                 start_P = start_P, start_Q = start_Q,
                                 max_P = max_P, max_Q = max_Q, D = D)
-    
-    display(auto_model.summary())
-    
+      
     best_model = tsa.SARIMAX(train,order=auto_model.order,
                              seasonal_order = auto_model.seasonal_order,
                              enforce_invertibility=False).fit()
     
-    model_results(best_model)
+    display(auto_model.summary())
+    display(model_results(best_model))
     
     return auto_model, best_model
+
+
+
 
 ### --------------- Workflow --------------- ###
 
@@ -107,27 +124,7 @@ train, test = ts_split(zipcode_val, .85)
 n_d = ndiffs(train)
 n_D = nsdiffs(train, m=12)
 
-## Run auto_arima to determine best parameters for modeling
-auto_model = pmd.auto_arima(train,start_p=0,start_q=0,d=n_d,
-                            max_p=3,max_q=3,
-                            max_P=3,max_Q=3, D=n_D,
-                            start_P=0,start_Q=0,
-                            m=12)
-
-display(auto_model.summary())
-auto_model.plot_diagnostics(figsize= (12,7));
-plt.tight_layout()
-
-best_model = tsa.SARIMAX(train,order=auto_model.order,
-                         seasonal_order = auto_model.seasonal_order,
-                         enforce_invertibility=False).fit()
-
-display(best_model.summary())
-best_model.plot_diagnostics(figsize=(12,7));
-plt.tight_layout()
-
-
-
+auto_model, best_model = create_best_model(train, n_d=n_d, n_D=n_D)
 
  ## Using get_forecast to generate forecasted data
 forecast = best_model.get_forecast(steps=len(test))
@@ -140,8 +137,9 @@ forecast_df.head(5)
 
 fig,ax = plt.subplots(figsize=(13,6))
 
-last_n_lags=12*5         
+last_n_lags=12*n_years
 
+## Plotting training, testing datasets
 train.iloc[-last_n_lags:].plot(label='Training Data')
 test.plot(label='Test Data')
 
@@ -152,7 +150,7 @@ ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
 
 ax.set(xlabel='Time')
 ax.set(ylabel='Sell Price ($)')
-ax.set_title('Data and Forecasted Data')
+ax.set_title('Original Data and Forecasted Data')
 ax.legend();
 
 best_model = tsa.SARIMAX(zipcode_val,order=auto_model.order,
