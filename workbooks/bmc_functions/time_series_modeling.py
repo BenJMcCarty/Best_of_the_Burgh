@@ -17,47 +17,54 @@ from pmdarima.arima import nsdiffs
 ### --------------- Functions --------------- ###
 
 # Creating train/test split for time series modeling
-def ts_split(timeseries_df, threshold=.85):
+def ts_split(dataframe, threshold=.85, show_vis=False):
     """Creates train/test split for time series modeling.
 
     Args:
         timeseries_df (DataFrame): DataFrame or Series to be modeled
-        threshold (float): threshold (as decimal percent) for splitting data. Defaults to .85.
+        threshold (float): Threshold (as decimal percent) for splitting data. Defaults to .85.
+        show_vis (boolean): Whether to show a visualization of the split data. Detaults to False.
 
     Returns:
         train, test: Initial DataFrame/Series split into sub-Series for modeling
     """
 
-    tts_cutoff = round(timeseries_df.shape[0]*threshold)
-    train = timeseries_df.iloc[:tts_cutoff]
-    test = timeseries_df.iloc[tts_cutoff:]
+    tts_cutoff = round(dataframe.shape[0]*threshold)
+    train = dataframe.iloc[:tts_cutoff]
+    test = dataframe.iloc[tts_cutoff:]
 
-    ## Plot
-    fig, ax = plt.subplots()
-    ax = train.plot(label='Train')
-    ax = test.plot(label='Test')
-    ax.legend()
-    ax.set_xlabel('Years')
-    ax.set_ylabel('Price ($)')
-    ax.set_title(f'Train/Test Split for Zipcode {timeseries_df.name}')
-    ax.axvline(train.index[-1], linestyle=":")
-    plt.show();
+    if show_vis is True:
+        ## Plot
+        fig, ax = plt.subplots()
+        ax = train.plot(label='Training Data')
+        ax = test.plot(label='Testing Data')
+        ax.legend()
+        ax.set_xlabel('Years')
+        ax.set_ylabel('Price ($)')
+        ax.set_title(f'Train/Test Split for Zipcode {dataframe.name}')
+        ax.axvline(train.index[-1], linestyle=":", label='Split Point')
+        plt.show();
     
     return train, test
 
 ## Display model results
-def model_results(ts_model):
+def model_performance(ts_model, show_results = False):
     """Displays a fitted model's summary and plot diagnostics.
 
     Args:
         ts_model (model): fitted model for evaluation
     """    
-    display(ts_model.summary())
-    ts_model.plot_diagnostics();
-    plt.tight_layout()
+    model_performance = ts_model.summary()
+
+    if show_results is True:
+        display(ts_model.summary())
+        ts_model.plot_diagnostics();
+        plt.tight_layout()
+
+    return model_performance
 
 ## Generate best model parameters via auto_arima
-def auto_arima_model(timeseries_dataset,m=12,start_p=0,max_p=3
+def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=3
                         ,start_q=0,max_q=3,start_P=0,
                         start_Q=0, max_P=3, max_Q = 3):
     
@@ -65,7 +72,7 @@ def auto_arima_model(timeseries_dataset,m=12,start_p=0,max_p=3
 
     Args:
         timeseries_dataset (Series/DataFrame): dataset for modeling
-        m (int, optional): The number of periods in each season (for seasonal differencing). Defaults to 12.
+        m (int): The number of periods in each season (for seasonal differencing).
         start_p (int, optional): Starting value for "p". Defaults to 0.
         max_p (int, optional): Max value for "p". Defaults to 3.
         start_q (int, optional): Starting value for "pq. Defaults to 0.
@@ -93,16 +100,16 @@ def auto_arima_model(timeseries_dataset,m=12,start_p=0,max_p=3
 
 ## Use auto_arima to determine best parameters
 ## Then create new SARIMA model via Statsmodels with selected parameters
-def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3,
+def create_best_model(timeseries_dataset,m,start_p=0,max_p=3,
                         start_q=0,max_q=3,start_P=0,
-                        start_Q=0, max_P=3, max_Q = 3):
+                        start_Q=0, max_P=3, max_Q = 3, show_vis=False):
 
     """Calculates best model parameters via auto-arima,
      then fits a new SARIMAX model for results.
 
     Args:
         timeseries_dataset (Series/DataFrame): dataset for modeling
-        m (int, optional): The number of periods in each season (for seasonal differencing). Defaults to 12.
+        m (int): The number of periods in each season (for seasonal differencing)
         start_p (int, optional): Starting value for "p". Defaults to 0.
         max_p (int, optional): Max value for "p". Defaults to 3.
         start_q (int, optional): Starting value for "pq. Defaults to 0.
@@ -111,6 +118,7 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3,
         start_Q (int, optional): Starting value for "Q". Defaults to 0.
         max_P (int, optional): Max value for "P". Defaults to 3.
         max_Q (int, optional): Max value for "Q". Defaults to 3.
+        show_vis (boolean, optional): Whether to show the model summary and plot diagnostics. Defaults to False.
 
     Returns:
         auto_model, best_model: auto_arima-generated model with best parameters,
@@ -127,8 +135,9 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=3,
                              seasonal_order = auto_model_best.seasonal_order,
                              enforce_invertibility=False).fit()
     
-    display(auto_model_best.summary())
-    display(model_results(best_model))
+    if show_vis is True:
+        display(auto_model_best.summary())
+        display(model_performance(best_model))
     
     return auto_model_best, best_model
 
@@ -152,7 +161,7 @@ def forecast_and_ci(model, test_data = None, n_yrs_future = None):
     return forecast_df
 
 ## Plotting training, testing datasets
-def plot_forecast_ttf(train, test, forecast_df, n_yrs_past=5):
+def plot_forecast_ttf(train, test, forecast_df, n_yrs_past, show_vis = False):
     fig,ax = plt.subplots(figsize=(13,6))
     last_n_lags=12*n_yrs_past
     train.iloc[-last_n_lags:].plot(label='Training Data')
@@ -161,18 +170,22 @@ def plot_forecast_ttf(train, test, forecast_df, n_yrs_past=5):
     ## Plotting forecasted data and confidence intervals
     forecast_df['Forecast'].plot(ax=ax,label='Forecast')
     ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
-                    forecast_df['Upper CI'],color='b',alpha=0.4)
-    ax.set(xlabel='Time')
+                    forecast_df['Upper CI'],color='y',alpha=0.275)
+    ax.set(xlabel='Years')
     ax.set(ylabel='Sale Price ($)')
     ax.set_title(f'Zipcode {train.name}: Training, Testing, and Forecasted Data')
     ax.axvline(train.index[-1], linestyle=":", label='Beginning of Forecast')
     ax.legend(loc='upper left')
-    plt.show()
+    
+    if show_vis is True:
+        plt.show()
+    else:
+        plt.close()
 
     return fig, ax
 
 ## Plotting training, testing datasets
-def plot_forecast_final(zipcode_val, forecast_overall):
+def plot_forecast_final(zipcode_val, forecast_overall, show_vis = False):
     ## Plotting original data and forecasted results
     fig,ax = plt.subplots(figsize=(13,6))
 
@@ -182,19 +195,24 @@ def plot_forecast_final(zipcode_val, forecast_overall):
     ## Plotting forecasted data and confidence intervals
     forecast_overall['Forecast'].plot(ax=ax,label='Forecast')
     ax.fill_between(forecast_overall.index,forecast_overall['Lower CI'],
-                    forecast_overall['Upper CI'],color='b',alpha=0.4)
-    ax.set(xlabel='Time')
+                    forecast_overall['Upper CI'],color='y',alpha=0.275)
+    ax.set(xlabel='Years')
     ax.set(ylabel='Sale Price ($)')
-    ax.set_title('Original and Forecasted Data')
+    ax.set_title(f'Zipcode {zipcode_val.name}: Original Data and Forecast Data')
+    ax.axvline(zipcode_val.index[-1], linestyle=":", label='Beginning of Forecast')
     ax.legend(loc='upper left')
-    plt.show()
+    
+    if show_vis is True:
+        plt.show()
+    else:
+        plt.close()
 
     return fig, ax
 
 
 ### --------------- Workflow --------------- ###
 
-def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, n_yrs_future=2):
+def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, n_yrs_future=2, show_vis = False):
     """Functionalizes total time series modeling workflow 
     starting with time series dataset through final forecasted data and ROI.
 
@@ -212,38 +230,38 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
     zipcode_val
 
     ## Split dataset
-    train, test = ts_split(zipcode_val, threshold)
+    train, test = ts_split(zipcode_val, threshold, show_vis = show_vis)
 
     ## Generating auto_arima model and SARIMAX model
     ## (based on best parameters from auto_arima model)
-    auto_model, best_model = create_best_model(train)
+    auto_model_train, best_model_train = create_best_model(timeseries_dataset = train, m=m)
     
     ## Generating dataframe to store forecast results
-    forecast_df = forecast_and_ci(best_model, test)
+    forecast_train = forecast_and_ci(best_model_train, test)
 
     ## Plotting forecast results against train/test split
-    plot_forecast_ttf(train=train, test=test, forecast_df = forecast_df)
+    plot_training_fig, plot_training_ax  = plot_forecast_ttf(train=train, test=test, forecast_df = forecast_train, n_yrs_past=n_yrs_past, show_vis=show_vis)
 
     ## Fitting best model using whole dataset
-    best_model_overall = tsa.SARIMAX(zipcode_val,order=auto_model.order,
-                            seasonal_order = auto_model.seasonal_order,
+    best_model_overall = tsa.SARIMAX(zipcode_val,order=auto_model_train.order,
+                            seasonal_order = auto_model_train.seasonal_order,
                             enforce_invertibility=False).fit()
 
     
-    best_model_perf = model_results(best_model_overall)
+    final_model_perf = model_performance(best_model_overall)
 
     ## Using get_forecast to generate forecasted data
     forecast_overall = forecast_and_ci(best_model_overall, n_yrs_future = n_yrs_future)
 
     ## Plotting original data and forecast results
-    final_fig, final_ax = plot_forecast_final(zipcode_val, forecast_overall)
+    plot_final_fig, plot_final_ax = plot_forecast_final(zipcode_val, forecast_overall, show_vis = show_vis)
 
     ## Calculating investment cost and ROI across dataframe
-    investment_cost = forecast_df.iloc[0,2]
+    investment_cost = forecast_overall.iloc[0,2]
     roi_df = (forecast_overall - investment_cost)/investment_cost*100
     
     ## Pulling ROI for final forecasted date
     roi_final = roi_df.iloc[-1]
     roi_final.name = zipcode_val.name.astype('str')
     
-    return forecast_overall, roi_final, best_model_perf, final_fig
+    return forecast_overall, roi_final, final_model_perf, plot_training_fig, plot_final_fig
