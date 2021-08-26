@@ -380,7 +380,8 @@ def make_dict(dataframe, zipcode, threshold, m=12, show_vis = True, figsize=(12,
             (dataframe = dataframe, threshold = threshold, zipcode = zipcode, m=m, show_vis = show_vis, figsize=figsize)
         
     metrics['train'] = [summary_train, diag_train]
-    metrics['full'] = [summary_full, diag_full] 
+    metrics['full'] = [summary_full, diag_full]
+    
     forecast_vis['train'] = training_frcst
     forecast_vis['full'] = final_frcst
     forecast_vis['split'] = split_vis
