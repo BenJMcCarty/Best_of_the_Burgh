@@ -121,17 +121,20 @@ def ts_split(dataframe, threshold=.85, show_vis=False):
     train = dataframe.iloc[:tts_cutoff]
     test = dataframe.iloc[tts_cutoff:]
 
-    if show_vis is True:
+    if show_vis == True:
+        fig,ax = plt.subplots()
         ax = train.plot(label='Training Data')
         test.plot(ax=ax, label='Testing Data')
         ax.set_xlabel('Years')
-        ax.set_ylabel('Price ($)')
+        ax.set_ylabel('Sale Price ($)')
         ax.set_title(f'Zipcode {dataframe.name}: Train/Test Split')
         ax.axvline(train.index[-1], linestyle=":", label=f'Split Point: {train.index[-1].year}'+'-'+f'{train.index[-1].month}')
         ax.legend()
         plt.show()
-    
-    return train, test
+
+        return train, test, fig, ax
+    else:
+        return train, test
 
 ## Display model results
 def model_performance(ts_model, show_vis = False):
@@ -318,7 +321,10 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
     zipcode_val
 
     ## Split dataset
-    train, test = ts_split(zipcode_val, threshold, show_vis = show_vis)
+    if show_vis == True:
+            train, test, split_vis, _ = ts_split(zipcode_val, threshold, show_vis = show_vis)
+    else:
+        train, test = ts_split(zipcode_val, threshold, show_vis = show_vis)
 
     ## Generating auto_arima model and SARIMAX model
     ## (based on best parameters from auto_arima model)
@@ -355,10 +361,11 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
     roi_final = roi_df.iloc[-1]
     roi_final.name = zipcode_val.name.astype('str')
     
-    if show_vis is False:
+    if show_vis is True:
+        return forecast_full, roi_final, split_vis, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst
+    else:
         plt.close()
-
-    return forecast_full, roi_final, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst
+        return forecast_full, roi_final, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst
 
 def make_dict(dataframe, zipcode, m=12, show_vis = True):
 
@@ -366,14 +373,22 @@ def make_dict(dataframe, zipcode, m=12, show_vis = True):
     metrics = {}
     forecast_vis = {}
     
-    forecast_full, roi_final, summary_train, diag_train, summary_full,\
-    diag_full, training_frcst, final_frcst = ts_modeling_workflow\
-        (dataframe = dataframe, zipcode = zipcode, m=m, show_vis = show_vis)
+    if show_vis == False:
+        forecast_full, roi_final, summary_train, diag_train, summary_full,diag_full, training_frcst, final_frcst = ts_modeling_workflow\
+            (dataframe = dataframe, zipcode = zipcode, m=m, show_vis = show_vis)
+    
+    else:
+        forecast_full, roi_final, split_vis, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst = ts_modeling_workflow\
+            (dataframe = dataframe, zipcode = zipcode, m=m, show_vis = show_vis)
+    
+
     
     metrics['train'] = [summary_train, diag_train]
     metrics['full'] = [summary_full, diag_full] 
     forecast_vis['train'] = training_frcst
     forecast_vis['full'] = final_frcst
+    if show_vis == True:
+        forecast_vis['split'] = split_vis
     
     zip_tsa_results['forecasted_prices'] = forecast_full
     zip_tsa_results['roi'] = roi_final
