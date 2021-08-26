@@ -4,17 +4,105 @@ Description: Functions created to assist with the creation and evaluation of tim
 
 By Ben McCarty (bmccarty505@gmail.com)'''
 
-### --------------- Importing Dependencies --------------- ###
+### ----- Importing Dependencies ----- ###
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+
 import statsmodels.tsa.api as tsa
 
 import pmdarima as pmd
 from pmdarima.arima import ndiffs
 from pmdarima.arima import nsdiffs
 
-### --------------- Functions --------------- ###
+### ----------------------------------- Functions ----------------------------------- ###
+
+## --------------- Stationary Methods --------------- ##
+
+def adf_test(ts, p = .05):
+    zipdf_results = tsa.stattools.adfuller(ts)
+    
+    index_label = [f'Results: {ts.name}']
+    labels = ['Test Stat','P-Value','Number of Lags Used','Number of Obs. Used',
+            'Critical Thresholds', 'AIC Value']
+    results_dict  = dict(zip(labels,zipdf_results))
+
+    ## Saving results to a dictionary and adding T/F indicating stationarity
+    results_dict[f'p < {p}'] = results_dict['P-Value'] < p
+    results_dict['Stationary'] = results_dict[f'p < {p}']
+
+    ## Creating DataFrame from dictionary
+    if isinstance(index_label,str):
+        index_label = [index_label]
+    results_dict = pd.DataFrame(results_dict,index=index_label)
+    results_dict = results_dict[['Test Stat','P-Value','Number of Lags Used',
+                                 'Number of Obs. Used','P-Value',f'p < {p}',
+                                 'Stationary']]
+    
+    return results_dict
+
+def remove_trends(timeseries, method, window = 4):
+    if method == 'diff':
+        results = timeseries.diff().dropna()
+    elif method == 'log':
+        results = np.log(timeseries)
+    elif method == 'rolling' or method == 'rolling mean':
+        results = timeseries - timeseries.rolling(window = window).mean()
+        results.dropna(inplace=True)
+    elif method == 'ewm' or method == 'EWM':
+        results = timeseries-timeseries.ewm(4).mean()
+        results.dropna(inplace=True)
+    
+    print("|","---"*7,f"{method.title()} Effect on Zipcode {timeseries.name}",
+      "-----"*6,"|",'\n\n')
+    print("|","---",f"Zipcode {timeseries.name}","---","|","\n")
+    print(results)
+    print('\n\n',"|","----"*5,f"ADF Results for Zipcode {timeseries.name}",
+          "-----"*6,"|")
+    display(adf_test(results))
+
+    print('\n\n','|',"---"*8,f"Visualizing {method.title()} Effect","----"*8,
+          "|")
+    fig, ax = plt.subplots()
+    ax = results.plot(label=f'{timeseries.name}')
+    ax.legend()
+    ax.set_xlabel('Years')
+    ax.set_ylabel('Price ($)')
+    
+    if method != 'ewm' and method != 'EWM':
+        ax.set_title(f'{method.title()} Effect on Zipcode {timeseries.name}')
+    else:
+        ax.set_title(f'{method.capitalize()} Effect on Zipcode \
+                                                        {timeseries.name}')
+    plt.show()
+    
+    return results
+
+def plot_acf_pacf(data, figsize=(12,6), lags=52, suptitle=None, sup_x = .53, sup_y = 1):
+    """Plot pacf and acf using statsmodels
+    
+    Adapted from: https://github.com/flatiron-school/Online-DS-FT-022221-\
+    Cohort-Notes/blob/master/Phase_4/topic_38_time_series_models/topic_38-\
+    time_series_models_v3_SG.ipynb"""
+    
+    fig,axes=plt.subplots(nrows=2, figsize = figsize)
+    
+    tsa.graphics.plot_acf(data,ax=axes[0],lags=lags)
+    tsa.graphics.plot_pacf(data,ax=axes[1],lags=lags)
+    
+    ## Add gridlines and y-labels
+    [ax.grid(axis='both',which='both') for ax in axes]
+    [ax.set_ylabel('Corr. Strength') for ax in axes]
+    
+    if suptitle is not None:
+        fig.suptitle(suptitle,x = sup_x, y=sup_y,fontweight='bold',fontsize=15)
+        
+    fig.tight_layout()
+
+    return fig,axes
+
+### --------------- Modeling --------------- ###
 
 # Creating train/test split for time series modeling
 def ts_split(dataframe, threshold=.85, show_vis=False):
@@ -34,13 +122,13 @@ def ts_split(dataframe, threshold=.85, show_vis=False):
     test = dataframe.iloc[tts_cutoff:]
 
     if show_vis is True:
-        fig = train.plot(label='Training Data')
-        fig = test.plot(label='Testing Data')
-        fig.legend()
-        fig.set_xlabel('Years')
-        fig.set_ylabel('Price ($)')
-        fig.set_title(f'Train/Test Split for Zipcode {dataframe.name}')
-        fig.axvline(train.index[-1], linestyle=":", label='Split Point')
+        ax = train.plot(label='Training Data')
+        test.plot(ax=ax, label='Testing Data')
+        ax.set_xlabel('Years')
+        ax.set_ylabel('Price ($)')
+        ax.set_title(f'Zipcode {dataframe.name}: Train/Test Split')
+        ax.axvline(train.index[-1], linestyle=":", label=f'Split Point: {train.index[-1].year}'+'-'+f'{train.index[-1].month}')
+        ax.legend()
         plt.show()
     
     return train, test
@@ -63,9 +151,9 @@ def model_performance(ts_model, show_vis = False):
     return ts_model.summary(), fig
 
 ## Generate best model parameters via auto_arima
-def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=7,
-                        start_q=0,max_q=7,start_P=0,
-                        start_Q=0, max_P=7, max_Q = 7):
+def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=5,
+                        start_q=0,max_q=5,start_P=0,
+                        start_Q=0, max_P=5, max_Q = 5):
     
     """Fits an auto_arima model to a given timeseries dataset.
 
@@ -94,7 +182,7 @@ def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=7,
                                 start_q = start_q, max_q = max_q,
                                 start_P = start_P, max_P = max_P,
                                 start_Q = start_Q, max_Q = max_Q,
-                                d = n_d, D = n_D, error_action = 'ignore')
+                                d = n_d, D = n_D, error_action="ignore")
 
     return auto_arima_model
 
@@ -142,18 +230,14 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=5,
     return auto_model_best, best_model
 
 ## Using get_forecast to generate forecasted data
-def forecast_and_ci(model, test_data = None, n_yrs_future = None):
+def forecast_and_ci(model, test_data):
     """Generate forecast for a given model
 
     Args:
         model: fitted SARIMAX model
         test_data (Series): Test data
     """    
-    if test_data is None:
-        forecast = model.get_forecast(steps=12*n_yrs_future)
-    else:
-        forecast = model.get_forecast(steps=len(test_data))
-    
+    forecast = model.get_forecast(steps=len(test_data))
     forecast_df = forecast.conf_int()
     forecast_df.columns = ['Lower CI','Upper CI']
     forecast_df['Forecast'] = forecast.predicted_mean
@@ -163,6 +247,7 @@ def forecast_and_ci(model, test_data = None, n_yrs_future = None):
 ## Plotting training, testing datasets
 def plot_forecast_ttf(train, test, forecast_df, n_yrs_past=5, show_vis = False):
     fig,ax = plt.subplots()
+
     last_n_lags=12*n_yrs_past
     train.iloc[-last_n_lags:].plot(label='Training Data')
     test.plot(label='Test Data')
@@ -173,8 +258,10 @@ def plot_forecast_ttf(train, test, forecast_df, n_yrs_past=5, show_vis = False):
                     forecast_df['Upper CI'],color='y',alpha=0.275)
     ax.set(xlabel='Years')
     ax.set(ylabel='Sale Price ($)')
-    ax.set_title(f'Zipcode {train.name}: Training, Testing, and Forecasted Data')
-    ax.axvline(train.index[-1], linestyle=":", label='Beginning of Forecast', color='k')
+    ax.set_title(f'Zipcode {train.name}: Validating Forecasted Data')
+    ax.axvline(test.index[0], linestyle=":",
+     label=f'Beginning of Forecast: {test.index[0].year}'+'-'+f'{test.index[0].month}',
+      color='k')
     ax.legend(loc='upper left')
     
     if show_vis is True:
@@ -199,7 +286,9 @@ def plot_forecast_final(zipcode_val, forecast_full, show_vis = False):
     ax.set(xlabel='Years')
     ax.set(ylabel='Sale Price ($)')
     ax.set_title(f'Zipcode {zipcode_val.name}: Original Data and Forecast Data')
-    ax.axvline(zipcode_val.index[-1], linestyle=":", label='Beginning of Forecast', color='k')
+    ax.axvline(zipcode_val.index[-1], linestyle=":",
+     label=f'Beginning of Forecast: {zipcode_val.index[-1].year}'+'-'+f'{zipcode_val.index[-1].month}',
+      color='k')
     ax.legend(loc='upper left')
     
     if show_vis is True:
@@ -212,7 +301,7 @@ def plot_forecast_final(zipcode_val, forecast_full, show_vis = False):
 
 ### --------------- Workflow --------------- ###
 
-def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, n_yrs_future=2, show_vis = False):
+def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, show_vis = False):
     """Functionalizes total time series modeling workflow 
     starting with time series dataset through final forecasted data and ROI.
 
@@ -222,7 +311,6 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
         threshold (float, optional): Threshold to determine train/test split. Defaults to .85.
         m (int, optional): The number of periods in each season (for seasonal differencing). Defaults to 12.
         n_yrs_past (int, optional): Number of past years for visualizations. Defaults to 5.
-        n_yrs_future (int, optional): Number of future years for visualizations. Defaults to 2.
     """
 
     ## Select values for the selected zipcode
@@ -254,7 +342,7 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
     summary_full, diag_full = model_performance(best_model_full)
 
     ## Using get_forecast to generate forecasted data
-    forecast_full = forecast_and_ci(best_model_full, n_yrs_future = n_yrs_future)
+    forecast_full = forecast_and_ci(best_model_full, test)
 
     ## Plotting original data and forecast results
     final_frcst, _ = plot_forecast_final(zipcode_val, forecast_full, show_vis = show_vis)
@@ -272,13 +360,13 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
 
     return forecast_full, roi_final, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst
 
-def make_dict(dataframe, zipcode, m=12, show_vis = False):
+def make_dict(dataframe, zipcode, m=12, show_vis = True):
 
     zip_tsa_results = {}
     metrics = {}
     forecast_vis = {}
     
-    forecast, roi, summary_train, diag_train, summary_full,\
+    forecast_full, roi_final, summary_train, diag_train, summary_full,\
     diag_full, training_frcst, final_frcst = ts_modeling_workflow\
         (dataframe = dataframe, zipcode = zipcode, m=m, show_vis = show_vis)
     
@@ -287,8 +375,8 @@ def make_dict(dataframe, zipcode, m=12, show_vis = False):
     forecast_vis['train'] = training_frcst
     forecast_vis['full'] = final_frcst
     
-    zip_tsa_results['forecasted_prices'] = forecast
-    zip_tsa_results['ROI'] = roi
+    zip_tsa_results['forecasted_prices'] = forecast_full
+    zip_tsa_results['roi'] = roi_final
     zip_tsa_results['model_metrics'] = metrics
     zip_tsa_results['model_visuals'] = forecast_vis
     
