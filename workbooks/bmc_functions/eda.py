@@ -4,9 +4,11 @@ Description: Functions created to assist with data cleaning and exploratory data
 
 By Ben McCarty (bmccarty505@gmail.com)'''
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import statsmodels as stats
 
 ## 
 def sort_report(Source, Sort_by, Show_Only_Missing = False, Drop_Cols = False, Cols = ['N/A - Specify Columns'], Highlight_All=False, Ascending_Values = False, Color='#d65f5f'):
@@ -113,7 +115,7 @@ def feature_vis(data, x, y = 'price', categorical = False, kde = True):
     sns.histplot(data=data, x=x, discrete=categorical, kde=kde, ax=axs[1])
     
     fig.suptitle(f'{x.title()} vs. {y.title()}', fontsize=16)
-    plt.tight_layout();
+    plt.tight_layout()
     
     return
 
@@ -227,3 +229,10 @@ def report_df(dataframe):
 
     return report_df
 
+def plot_boxes(data, x_label, y_label, suptitle, figsize=(13,8)):
+    fig, ax = plt.subplots(figsize=figsize)
+    ax = sns.boxplot(data=data)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    plt.suptitle(suptitle, size = 18)
+    plt.tight_layout()
