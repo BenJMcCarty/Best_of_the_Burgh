@@ -137,9 +137,6 @@ def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(10,5)):
     split_dict['test'] = dataframe.iloc[tts_cutoff:]
     split_dict['split_vis'] = fig
 
-    if show_vis is False:
-        plt.close()
-
     return split_dict
 
 ## Display model results
@@ -153,9 +150,7 @@ def model_performance(ts_model):
 
     perf['summary'] = ts_model.summary()
 
-    diag_fig = ts_model.plot_diagnostics(figsize = (12, 6))
-
-    plt.close(diag_fig)
+    perf['diagnostics'] = ts_model.plot_diagnostics(figsize = (12, 6))
 
     return perf
 
@@ -276,11 +271,6 @@ def plot_forecast_ttf(split_dict, forecast_df, figsize = (10,5), show_vis = Fals
     
     ttf_dict = {}
     ttf_dict['figure'] = fig
-
-    if show_vis is True:
-        plt.show(fig)
-
-    plt.close(fig)
     
     return ttf_dict
 
@@ -307,11 +297,6 @@ def plot_forecast_final(zipcode_val, forecast_full, figsize=(12,6), show_vis = F
 
     final_dict = {}
     final_dict['figure'] = fig
-
-    if show_vis is True:
-        plt.show()
-    
-    plt.close(fig)
 
     return final_dict
 
