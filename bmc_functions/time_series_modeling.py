@@ -117,7 +117,7 @@ def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(10,5)):
         train, test: Initial DataFrame/Series split into sub-Series for modeling
     """
 
-    split_dict = {}
+    # split_dict = {}
 
     tts_cutoff = round(dataframe.shape[0]*threshold)
     train = dataframe.iloc[:tts_cutoff]
@@ -133,13 +133,11 @@ def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(10,5)):
     ax.axvline(train.index[-1], linestyle=':', label=f'Split Point: {train.index[-1].year} - {train.index[-1].month}')
     ax.legend()
 
-    split_dict['train'] = dataframe.iloc[:tts_cutoff]
-    split_dict['test'] = dataframe.iloc[tts_cutoff:]
-    split_dict['split_vis'] = fig
+    # split_dict['train'] = dataframe.iloc[:tts_cutoff]
+    # split_dict['test'] = dataframe.iloc[tts_cutoff:]
+    # split_dict['split_vis'] = fig
 
-    display(fig)
-
-    return split_dict
+    return train, test, fig
 
 ## Display model results
 def model_performance(ts_model):
@@ -247,10 +245,10 @@ def forecast_and_ci(model, test_data):
     return forecast_df
 
 ## Plotting training, testing datasets
-def plot_forecast_ttf(split_dict, forecast_df, figsize = (10,5), show_vis = False):
+def plot_forecast_ttf(train, test, forecast_df, figsize = (10,5), show_vis = False):
     
-    train = split_dict.get('train')
-    test = split_dict.get('test')
+    # train = split_dict.get('train')
+    # test = split_dict.get('test')
 
     last_n_lags=len(train)
     
@@ -326,12 +324,9 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12,figsize = (1
 
     ## Split dataset
 
-    split_dict = ts_split(zipcode_val, threshold, show_vis = show_vis, figsize=figsize)
+    train, test, split_fig = ts_split(zipcode_val, threshold, show_vis = show_vis, figsize=figsize)
 
-    train = split_dict.get('train')
-    test = split_dict.get('test')
-
-    forecast_vis['split'] = split_dict.get('split_vis')
+    forecast_vis['split'] = split_fig
 
     ## Generating auto_arima model and SARIMAX model
     ## (based on best parameters from auto_arima model)
@@ -344,7 +339,7 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12,figsize = (1
     forecast_train = forecast_and_ci(best_model_train, test)
 
     ## Plotting forecast results against train/test split
-    forecast_vis['train'] = plot_forecast_ttf(split_dict, forecast_df = forecast_train, figsize=figsize)
+    forecast_vis['train'] = plot_forecast_ttf(train, test, forecast_df = forecast_train, figsize=figsize)
 
     ## Fitting best model using whole dataset
     best_model_full = tsa.SARIMAX(zipcode_val,order=auto_model_train.order,
@@ -365,7 +360,7 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12,figsize = (1
     investment_cost = tsa_results['forecasted_prices'].iloc[0,2]
     tsa_results['roi'] = (tsa_results['forecasted_prices'] - investment_cost)/investment_cost*100
     
-    tsa_results['num_yrs_forecast'] = len(split_dict['test'])
+    tsa_results['num_yrs_forecast'] = len(test)
     tsa_results['model_metrics'] = metrics
     tsa_results['model_visuals'] = forecast_vis
 
