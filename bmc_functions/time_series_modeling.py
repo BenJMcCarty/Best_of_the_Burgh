@@ -42,7 +42,7 @@ def adf_test(ts, p = .05):
     
     return results_dict
 
-def remove_trends(timeseries, method, window = 4):
+def remove_trends(timeseries, method, window = 4, figsize=(10,5)):
     if method == 'diff':
         results = timeseries.diff().dropna()
     elif method == 'log':
@@ -64,7 +64,7 @@ def remove_trends(timeseries, method, window = 4):
 
     print('\n\n','|',"---"*8,f"Visualizing {method.title()} Effect","----"*8,
           "|")
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax = results.plot(label=f'{timeseries.name}')
     ax.legend()
     ax.set_xlabel('Years')
@@ -79,7 +79,7 @@ def remove_trends(timeseries, method, window = 4):
     
     return results
 
-def plot_acf_pacf(data, lags=52, suptitle=None, figsize = (12,4)):
+def plot_acf_pacf(data, lags=52, suptitle=None, figsize = (10,5)):
     """Plot pacf and acf using statsmodels
     
     Adapted from: https://github.com/flatiron-school/Online-DS-FT-022221-\
@@ -105,7 +105,7 @@ def plot_acf_pacf(data, lags=52, suptitle=None, figsize = (12,4)):
 ### --------------- Modeling --------------- ###
 
 # Creating train/test split for time series modeling
-def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(12,4)):
+def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(10,5)):
     """Creates train/test split for time series modeling.
 
     Args:
@@ -117,44 +117,47 @@ def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(12,4)):
         train, test: Initial DataFrame/Series split into sub-Series for modeling
     """
 
+    split_dict = {}
+
     tts_cutoff = round(dataframe.shape[0]*threshold)
     train = dataframe.iloc[:tts_cutoff]
     test = dataframe.iloc[tts_cutoff:]
 
-    fig,ax = plt.subplots(figsize=figsize)
+    fig,ax=plt.subplots(figsize = figsize)
+
     ax = train.plot(label='Training Data')
     test.plot(ax=ax, label='Testing Data')
     ax.set_xlabel('Years')
     ax.set_ylabel('Sale Price ($)')
     ax.set_title(f'Zipcode {dataframe.name}: Train/Test Split')
-    ax.axvline(train.index[-1], linestyle=":", label=f'Split Point: {train.index[-1].year}'+'-'+f'{train.index[-1].month}')
+    ax.axvline(train.index[-1], linestyle=':', label=f'Split Point: {train.index[-1].year} - {train.index[-1].month}')
     ax.legend()
-    fig.tight_layout()
 
-    if show_vis is True:
-        plt.show()
-    else:
+    split_dict['train'] = dataframe.iloc[:tts_cutoff]
+    split_dict['test'] = dataframe.iloc[tts_cutoff:]
+    split_dict['split_vis'] = fig
+
+    if show_vis is False:
         plt.close()
 
-    return train, test, fig, ax
+    return split_dict
 
 ## Display model results
-def model_performance(ts_model, show_vis = False, figsize=(12,4)):
+def model_performance(ts_model):
     """Displays a fitted model's summary and plot diagnostics.
 
     Args:
         ts_model (model): fitted model for evaluation
     """    
-    
-    fig = ts_model.plot_diagnostics(figsize=figsize)
-    fig.tight_layout()
-    
-    if show_vis is True:
-        fig = ts_model.plot_diagnostics(figsize=figsize)
-    else:
-        plt.close()
+    perf = {}
 
-    return ts_model.summary(), fig
+    perf['summary'] = ts_model.summary()
+
+    diag_fig = ts_model.plot_diagnostics(figsize = (12, 6))
+
+    plt.close(diag_fig)
+
+    return perf
 
 ## Generate best model parameters via auto_arima
 def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=5,
@@ -196,7 +199,7 @@ def auto_arima_model(timeseries_dataset, m = 12, start_p=0,max_p=5,
 ## Then create new SARIMA model via Statsmodels with selected parameters
 def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=5,
                         start_q=0,max_q=5,start_P=0,
-                        start_Q=0, max_P=5, max_Q = 5, show_vis=False, figsize=(12,4)):
+                        start_Q=0, max_P=5, max_Q = 5, show_vis=False, figsize=(10,5)):
 
     """Calculates best model parameters via auto-arima,
      then fits a new SARIMAX model for results.
@@ -229,10 +232,6 @@ def create_best_model(timeseries_dataset,m=12,start_p=0,max_p=5,
                              seasonal_order = auto_model_best.seasonal_order,
                              enforce_invertibility=False).fit()
     
-    if show_vis is True:
-        display(auto_model_best.summary())
-        model_performance(best_model, figsize=figsize)
-    
     return auto_model_best, best_model
 
 ## Using get_forecast to generate forecasted data
@@ -251,43 +250,51 @@ def forecast_and_ci(model, test_data):
     return forecast_df
 
 ## Plotting training, testing datasets
-def plot_forecast_ttf(train, test, forecast_df, show_vis = False, figsize=(12,4)):
-    fig,ax = plt.subplots(figsize=figsize)
+def plot_forecast_ttf(split_dict, forecast_df, figsize = (10,5), show_vis = False):
+    
+    train = split_dict.get('train')
+    test = split_dict.get('test')
 
     last_n_lags=len(train)
-    train.iloc[-last_n_lags:].plot(label='Training Data', figsize=figsize)
-    test.plot(label='Test Data', figsize=figsize)
+    
+    fig,ax=plt.subplots(figsize = figsize)
+
+    train.iloc[-last_n_lags:].plot(label='Training Data', ax=ax)
+    test.plot(label='Test Data', ax=ax)
 
     ## Plotting forecasted data and confidence intervals
-    forecast_df['Forecast'].plot(ax=ax,label='Forecast', color='g', figsize=figsize)
+    forecast_df['Forecast'].plot(label='Forecast', color='g', ax=ax)
     ax.fill_between(forecast_df.index,forecast_df['Lower CI'],
                     forecast_df['Upper CI'],color='y',alpha=0.275)
     ax.set(xlabel='Years')
     ax.set(ylabel='Sale Price ($)')
     ax.set_title(f'Zipcode {train.name}: Validating Forecasted Data')
     ax.axvline(test.index[0], linestyle=":",
-     label=f'Beginning of Forecast: {test.index[0].year}'+'-'+f'{test.index[0].month}',
+     label=f'Beginning of Forecast: {test.index[0].year} - {test.index[0].month}',
       color='k')
     ax.legend(loc='upper left')
-    plt.tight_layout()
     
-    if show_vis is True:
-        plt.show()
-    else:
-        plt.close()
+    ttf_dict = {}
+    ttf_dict['figure'] = fig
 
-    return fig, ax
+    if show_vis is True:
+        plt.show(fig)
+
+    plt.close(fig)
+    
+    return ttf_dict
 
 ## Plotting training, testing datasets
-def plot_forecast_final(zipcode_val, forecast_full, show_vis = False, figsize=(12,4)):
+def plot_forecast_final(zipcode_val, forecast_full, figsize=(12,6), show_vis = False):
     ## Plotting original data and forecasted results
-    fig,ax = plt.subplots(figsize=figsize)
+    
+    fig,ax=plt.subplots(figsize=figsize)
 
     ## Plotting original data
-    zipcode_val.plot(ax=ax, label='Original Data', figsize=figsize)
+    zipcode_val.plot(ax=ax, label='Original Data')
 
     ## Plotting forecasted data and confidence intervals
-    forecast_full['Forecast'].plot(ax=ax,label='Forecast', color='g', figsize=figsize)
+    forecast_full['Forecast'].plot(ax=ax,label='Forecast', color='g')
     ax.fill_between(forecast_full.index,forecast_full['Lower CI'],
                     forecast_full['Upper CI'],color='y',alpha=0.275)
     ax.set(xlabel='Years')
@@ -297,19 +304,21 @@ def plot_forecast_final(zipcode_val, forecast_full, show_vis = False, figsize=(1
      label=f'Beginning of Forecast: {zipcode_val.index[-1].year}'+'-'+f'{zipcode_val.index[-1].month}',
       color='k')
     ax.legend(loc='upper left')
-    plt.tight_layout()
+
+    final_dict = {}
+    final_dict['figure'] = fig
 
     if show_vis is True:
         plt.show()
-    else:
-        plt.close()
+    
+    plt.close(fig)
 
-    return fig, ax
+    return final_dict
 
 
 ### --------------- Workflow --------------- ###
 
-def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=5, show_vis = False, figsize=(12,4)):
+def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12,figsize = (10,5), show_vis = False):
     """Functionalizes total time series modeling workflow 
     starting with time series dataset through final forecasted data and ROI.
 
@@ -321,75 +330,87 @@ def ts_modeling_workflow(dataframe, zipcode, threshold = .85, m= 12, n_yrs_past=
         n_yrs_past (int, optional): Number of past years for visualizations. Defaults to 5.
     """
 
+    tsa_results = {}
+    metrics = {}
+    forecast_vis = {}
+
     ## Select values for the selected zipcode
     zipcode_val = dataframe[zipcode].copy()
 
     ## Split dataset
-    train, test, split_vis, _ = ts_split(zipcode_val, threshold, show_vis = show_vis, figsize=figsize)
+
+    split_dict = ts_split(zipcode_val, threshold, show_vis = show_vis, figsize=figsize)
+
+    train = split_dict.get('train')
+    test = split_dict.get('test')
+
+    forecast_vis['split'] = split_dict.get('split_vis')
 
     ## Generating auto_arima model and SARIMAX model
     ## (based on best parameters from auto_arima model)
     auto_model_train, best_model_train = create_best_model(timeseries_dataset = train, m=m)
     
     ## Saving training model results
-    summary_train, diag_train = model_performance(best_model_train)
+    metrics['train'] = model_performance(best_model_train)
 
     ## Generating dataframe to store forecast results
     forecast_train = forecast_and_ci(best_model_train, test)
 
     ## Plotting forecast results against train/test split
-    training_frcst, _  = plot_forecast_ttf(train=train, test=test, forecast_df = forecast_train, show_vis=show_vis)
+    forecast_vis['train'] = plot_forecast_ttf(split_dict, forecast_df = forecast_train, figsize=figsize)
 
     ## Fitting best model using whole dataset
     best_model_full = tsa.SARIMAX(zipcode_val,order=auto_model_train.order,
                             seasonal_order = auto_model_train.seasonal_order,
                             enforce_invertibility=False).fit()
 
-    
-    summary_full, diag_full = model_performance(best_model_full)
+    metrics['full'] = model_performance(best_model_full)
 
     ## Using get_forecast to generate forecasted data
-    forecast_full = forecast_and_ci(best_model_full, test)
+    best_forecast = forecast_and_ci(best_model_full, test)
+
+    tsa_results['forecasted_prices'] = best_forecast
 
     ## Plotting original data and forecast results
-    final_frcst, _ = plot_forecast_final(zipcode_val, forecast_full, show_vis = show_vis)
-
-    ## Calculating investment cost and ROI across dataframe
-    investment_cost = forecast_full.iloc[0,2]
-    roi_df = (forecast_full - investment_cost)/investment_cost*100
+    forecast_vis['full'] = plot_forecast_final(zipcode_val, tsa_results['forecasted_prices'], figsize=figsize)
     
+    ## Calculating investment cost and ROI across dataframe
+    investment_cost = tsa_results['forecasted_prices'].iloc[0,2]
+    tsa_results['roi'] = (tsa_results['forecasted_prices'] - investment_cost)/investment_cost*100
+    
+    tsa_results['num_yrs_forecast'] = len(split_dict['test'])
+    tsa_results['model_metrics'] = metrics
+    tsa_results['model_visuals'] = forecast_vis
+
     ## May be unused - need full ROI DF to pull ROI based on smallest len(test) for all zips
     # ## Pulling ROI for final forecasted date
     # roi_final = roi_df.iloc[-1]
     # roi_final.name = zipcode_val.name.astype('str')
     
-    if show_vis is True:
-        plt.show()
-    else:
-        plt.close()
-    
-    return forecast_full, roi_df, split_vis, len(test), summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst
+    return tsa_results
 
-def make_dict(dataframe, zipcode, threshold, m=12, show_vis = True, figsize=(12,4)):
 
-    zip_tsa_results = {}
-    metrics = {}
-    forecast_vis = {}
+## Deprecated due to updates in workflow function
+# def make_dict(dataframe, zipcode, threshold, m=12, show_vis = True, figsize=(12,4)):
+
+#     zip_tsa_results = {}
+#     metrics = {}
+#     forecast_vis = {}
     
-    forecast_full, roi_df, split_vis, forecast_length, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst = ts_modeling_workflow\
-            (dataframe = dataframe, threshold = threshold, zipcode = zipcode, m=m, show_vis = show_vis, figsize=figsize)
+#     forecast_full, roi_df, split_vis, forecast_length, summary_train, diag_train, summary_full, diag_full, training_frcst, final_frcst = ts_modeling_workflow\
+#             (dataframe = dataframe, threshold = threshold, zipcode = zipcode, m=m, show_vis = show_vis, figsize=figsize)
         
-    metrics['train'] = [summary_train, diag_train]
-    metrics['full'] = [summary_full, diag_full]
+#     metrics['train'] = [summary_train, diag_train]
+#     metrics['full'] = [summary_full, diag_full]
     
-    forecast_vis['train'] = training_frcst
-    forecast_vis['full'] = final_frcst
-    forecast_vis['split'] = split_vis
+#     forecast_vis['train'] = training_frcst
+#     forecast_vis['full'] = final_frcst
+#     forecast_vis['split'] = split_vis
     
-    zip_tsa_results['num_yrs_forecast'] = forecast_length
-    zip_tsa_results['forecasted_prices'] = forecast_full
-    zip_tsa_results['roi'] = roi_df
-    zip_tsa_results['model_metrics'] = metrics
-    zip_tsa_results['model_visuals'] = forecast_vis
+#     zip_tsa_results['num_yrs_forecast'] = forecast_length
+#     zip_tsa_results['forecasted_prices'] = forecast_full
+#     zip_tsa_results['roi'] = roi_df
+#     zip_tsa_results['model_metrics'] = metrics
+#     zip_tsa_results['model_visuals'] = forecast_vis
     
-    return zip_tsa_results
+#     return zip_tsa_results
