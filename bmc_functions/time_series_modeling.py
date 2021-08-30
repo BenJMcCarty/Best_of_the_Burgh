@@ -137,6 +137,8 @@ def ts_split(dataframe, threshold=.85, show_vis=False, figsize=(10,5)):
     split_dict['test'] = dataframe.iloc[tts_cutoff:]
     split_dict['split_vis'] = fig
 
+    display(fig)
+
     return split_dict
 
 ## Display model results
@@ -275,7 +277,7 @@ def plot_forecast_ttf(split_dict, forecast_df, figsize = (10,5), show_vis = Fals
     return ttf_dict
 
 ## Plotting training, testing datasets
-def plot_forecast_final(zipcode_val, forecast_full, figsize=(12,6), show_vis = False):
+def plot_forecast_final(zipcode_val, forecast_full, figsize=(10,5), show_vis = False):
     ## Plotting original data and forecasted results
     
     fig,ax=plt.subplots(figsize=figsize)
