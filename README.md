@@ -1,4 +1,5 @@
-# **Best of the 'Burgh:** *Forecasting House Sales in Pittsburgh, PA*
+# **Best of the 'Burgh**
+## *Forecasting House Sales in Pittsburgh, PA*
 
 **Author**: Ben McCarty
 
