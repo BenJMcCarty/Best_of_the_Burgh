@@ -114,5 +114,5 @@ dmypy.json
 .pyre/
 
 # Project repo files
-project_repo/
-wip_jnb/
+ignore_project_repo/
+ignore_wip_jnb/
